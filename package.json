@@ -1,0 +1,15 @@
+{
+	"scripts": {
+		"build": "tsdown --clean",
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix"
+	},
+	"devDependencies": {
+		"@types/node": "^24.3.3",
+		"eslint": "^9.35.0",
+		"mitata": "^1.0.34",
+		"neostandard": "^0.12.2",
+		"tsdown": "^0.15.1",
+		"typescript": "^5.9.2"
+	}
+}
