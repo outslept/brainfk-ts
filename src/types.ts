@@ -19,7 +19,10 @@ export enum Op {
   JmpF = 4,
   JmpB = 5,
   Clear = 6,
-  MoveAdd = 7,
+  MulAdd = 7,
+  Set = 8,
+  ScanR = 9,
+  ScanL = 10,
 }
 
 export interface Program {

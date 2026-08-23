@@ -18,7 +18,10 @@ type IROpt =
   | { op: 'Out'; n: number }
   | { op: 'In'; n: number }
   | { op: 'Clear' }
-  | { op: 'MoveAdd'; offset: number; factor: number }
+  | { op: 'Set'; n: number }
+  | { op: 'MulAdd'; offset: number; factor: number }
+  | { op: 'ScanR' }
+  | { op: 'ScanL' }
   | IRLoop;
 
 export class Parser {
@@ -105,62 +108,16 @@ export class Parser {
     const out: IROpt[] = [];
     const loopStack: number[] = [];
 
-    const pushMerged = (inst: IROpt): void => {
-      const prev = out[out.length - 1];
-
-      if (inst.op === 'Move' && prev && prev.op === 'Move') {
-        const net = prev.n + inst.n;
-        out.pop();
-        if (net !== 0) out.push({ op: 'Move', n: net });
-        return;
-      }
-
-      if (inst.op === 'Add' && prev && prev.op === 'Add') {
-        out.pop();
-        const net = prev.n + inst.n;
-        const mod = ((net % 256) + 256) % 256;
-        if (mod !== 0) out.push({ op: 'Add', n: mod <= 127 ? mod : mod - 256 });
-        return;
-      }
-
-      if (inst.op === 'Out' && prev && prev.op === 'Out') { prev.n += inst.n; return; }
-      if (inst.op === 'In'  && prev && prev.op === 'In')  { prev.n += inst.n;  return; }
-
-      out.push(inst);
-    };
-
-    const tryClear = (i: number, j: number): boolean => {
-      if (j - i - 1 !== 1) return false;
-      const body = input[i + 1]!;
-      if (body.op === 'Add') { pushMerged({ op: 'Clear' }); return true; }
-      return false;
-    };
-
-    const tryMoveAdd = (i: number, j: number): boolean => {
-      if (j - i - 1 !== 4) return false;
-      const a = input[i + 1]!;
-      const b = input[i + 2]!;
-      const c = input[i + 3]!;
-      const d = input[i + 4]!;
-      if (!(a.op === 'Add' && a.n === -1)) return false;
-      const isMove = (x: IRFlat): x is Extract<IRFlat, { op: 'Move' }> => x.op === 'Move';
-      const isAdd = (x: IRFlat): x is Extract<IRFlat, { op: 'Add' }> => x.op === 'Add';
-      if (isMove(b) && isAdd(c) && isMove(d) && b.n === -d.n) {
-        out.push({ op: 'MoveAdd', offset: b.n, factor: c.n });
-        return true;
-      }
-      return false;
-    };
-
     for (let i = 0; i < input.length; i++) {
       const ins = input[i]!;
+
       if (ins.op === 'JmpF') {
         const j = ins.target;
         const closer = input[j];
         if (!closer || closer.op !== 'JmpB') throw new Error('Invalid jump structure');
 
-        if (tryClear(i, j))   { i = j; continue; }
-        if (tryMoveAdd(i, j)) { i = j; continue; }
+        if (this.tryScan(input, out, i, j)) { i = j; continue; }
+        if (this.tryMulLoop(input, out, i, j)) { i = j; continue; }
 
         loopStack.push(out.length);
         out.push({ op: 'JmpF', target: 0 });
@@ -175,11 +132,101 @@ export class Parser {
         continue;
       }
 
-      pushMerged(ins as Extract<IROpt, { op: 'Move' | 'Add' | 'Out' | 'In' }>);
+      this.pushMerged(out, ins as Extract<IROpt, { op: 'Move' | 'Add' | 'Out' | 'In' }>);
     }
 
     if (loopStack.length) throw new Error('Unbalanced loops after optimize');
     return out;
+  }
+
+  private pushMerged(out: IROpt[], inst: IROpt): void {
+    const prev = out[out.length - 1];
+
+    if (inst.op === 'Move' && prev && prev.op === 'Move') {
+      const net = prev.n + inst.n;
+      out.pop();
+      if (net !== 0) out.push({ op: 'Move', n: net });
+      return;
+    }
+
+    if (inst.op === 'Add' && prev && prev.op === 'Add') {
+      out.pop();
+      const net = prev.n + inst.n;
+      const mod = ((net % 256) + 256) % 256;
+      if (mod !== 0) out.push({ op: 'Add', n: mod <= 127 ? mod : mod - 256 });
+      return;
+    }
+
+    if (inst.op === 'Out' && prev && prev.op === 'Out') { prev.n += inst.n; return; }
+    if (inst.op === 'In' && prev && prev.op === 'In') { prev.n += inst.n; return; }
+
+    if (inst.op === 'Clear' && prev && prev.op === 'Add') {
+      out.pop();
+      out.push({ op: 'Clear' });
+      return;
+    }
+
+    if (inst.op === 'Add' && prev && prev.op === 'Clear') {
+      out.pop();
+      out.push({ op: 'Set', n: inst.n });
+      return;
+    }
+
+    if (inst.op === 'Add' && prev && prev.op === 'Set') {
+      const net = prev.n + inst.n;
+      const mod = ((net % 256) + 256) % 256;
+      prev.n = mod <= 127 ? mod : mod - 256;
+      return;
+    }
+
+    out.push(inst);
+  }
+
+  private tryScan(input: IRFlat[], out: IROpt[], i: number, j: number): boolean {
+    if (j - i - 1 !== 1) return false;
+    const body = input[i + 1]!;
+    if (body.op !== 'Move') return false;
+
+    if (body.n === 1) {
+      out.push({ op: 'ScanR' });
+      return true;
+    }
+    if (body.n === -1) {
+      out.push({ op: 'ScanL' });
+      return true;
+    }
+    return false;
+  }
+
+  private tryMulLoop(input: IRFlat[], out: IROpt[], i: number, j: number): boolean {
+    if (j - i - 1 < 1) return false;
+
+    const a = input[i + 1]!;
+
+    if (a.op !== 'Add' || Math.abs(a.n) !== 1) return false;
+
+    let ptr = 0;
+    const factors = new Map<number, number>();
+
+    for (let k = i + 2; k < j; k++) {
+      const ins = input[k]!;
+      if (ins.op === 'Move') {
+        ptr += ins.n;
+      } else if (ins.op === 'Add') {
+        if (ptr === 0) return false;
+        factors.set(ptr, (factors.get(ptr) ?? 0) + ins.n);
+      } else {
+        return false;
+      }
+    }
+
+    if (ptr !== 0) return false;
+
+    for (const [offset, factor] of factors) {
+      out.push({ op: 'MulAdd', offset, factor });
+    }
+    out.push({ op: 'Clear' });
+    return true;
   }
 
   private assemble(insts: IROpt[]): Program {
@@ -191,14 +238,17 @@ export class Parser {
     for (let i = 0; i < n; i++) {
       const ins = insts[i]!;
       switch (ins.op) {
-        case 'Move':      op[i] = Op.Move;      a[i] = ins.n | 0; break;
-        case 'Add':       op[i] = Op.Add;       a[i] = ins.n | 0; break;
-        case 'Out':       op[i] = Op.Out;       a[i] = (ins.n | 0) >>> 0; break;
-        case 'In':        op[i] = Op.In;        a[i] = (ins.n | 0) >>> 0; break;
-        case 'JmpF':      op[i] = Op.JmpF;      a[i] = ins.target | 0; break;
-        case 'JmpB':      op[i] = Op.JmpB;      a[i] = ins.target | 0; break;
-        case 'Clear':     op[i] = Op.Clear;     break;
-        case 'MoveAdd':   op[i] = Op.MoveAdd;   a[i] = ins.offset | 0; b[i] = ins.factor | 0; break;
+        case 'Move': op[i] = Op.Move; a[i] = ins.n | 0; break;
+        case 'Add': op[i] = Op.Add; a[i] = ins.n | 0; break;
+        case 'Out': op[i] = Op.Out; a[i] = (ins.n | 0) >>> 0; break;
+        case 'In': op[i] = Op.In; a[i] = (ins.n | 0) >>> 0; break;
+        case 'JmpF': op[i] = Op.JmpF; a[i] = ins.target | 0; break;
+        case 'JmpB': op[i] = Op.JmpB; a[i] = ins.target | 0; break;
+        case 'Clear': op[i] = Op.Clear; break;
+        case 'Set': op[i] = Op.Set; a[i] = ins.n | 0; break;
+        case 'MulAdd': op[i] = Op.MulAdd; a[i] = ins.offset | 0; b[i] = ins.factor | 0; break;
+        case 'ScanR': op[i] = Op.ScanR; break;
+        case 'ScanL': op[i] = Op.ScanL; break;
       }
     }
 
