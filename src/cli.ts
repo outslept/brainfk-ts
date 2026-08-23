@@ -31,7 +31,7 @@ function main(): void {
       },
       onOutputBurst: (byte: number, count: number) => {
         process.stdout.write(Buffer.alloc(count, byte));
-      }
+      },
     });
 
     interpreter.run();

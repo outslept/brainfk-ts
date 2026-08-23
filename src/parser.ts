@@ -1,9 +1,7 @@
 import { Lexer } from './lexer';
 import { Op, type Program, type Token } from './types';
 
-type IRLoop =
-  | { op: 'JmpF'; target: number }
-  | { op: 'JmpB'; target: number };
+type IRLoop = { op: 'JmpF'; target: number } | { op: 'JmpB'; target: number };
 
 type IRFlat =
   | { op: 'Move'; n: number }
@@ -52,7 +50,10 @@ export class Parser {
       let c = 0;
       while (true) {
         const p = lexer.peek();
-        if (p && p.ch === ch) { lexer.nextToken(); c += 1; } else break;
+        if (p && p.ch === ch) {
+          lexer.nextToken();
+          c += 1;
+        } else break;
       }
       return c;
     };
@@ -116,8 +117,14 @@ export class Parser {
         const closer = input[j];
         if (!closer || closer.op !== 'JmpB') throw new Error('Invalid jump structure');
 
-        if (this.tryScan(input, out, i, j)) { i = j; continue; }
-        if (this.tryMulLoop(input, out, i, j)) { i = j; continue; }
+        if (this.tryScan(input, out, i, j)) {
+          i = j;
+          continue;
+        }
+        if (this.tryMulLoop(input, out, i, j)) {
+          i = j;
+          continue;
+        }
 
         loopStack.push(out.length);
         out.push({ op: 'JmpF', target: 0 });
@@ -157,8 +164,14 @@ export class Parser {
       return;
     }
 
-    if (inst.op === 'Out' && prev && prev.op === 'Out') { prev.n += inst.n; return; }
-    if (inst.op === 'In' && prev && prev.op === 'In') { prev.n += inst.n; return; }
+    if (inst.op === 'Out' && prev && prev.op === 'Out') {
+      prev.n += inst.n;
+      return;
+    }
+    if (inst.op === 'In' && prev && prev.op === 'In') {
+      prev.n += inst.n;
+      return;
+    }
 
     if (inst.op === 'Clear' && prev && prev.op === 'Add') {
       out.pop();
@@ -238,17 +251,48 @@ export class Parser {
     for (let i = 0; i < n; i++) {
       const ins = insts[i]!;
       switch (ins.op) {
-        case 'Move': op[i] = Op.Move; a[i] = ins.n | 0; break;
-        case 'Add': op[i] = Op.Add; a[i] = ins.n | 0; break;
-        case 'Out': op[i] = Op.Out; a[i] = (ins.n | 0) >>> 0; break;
-        case 'In': op[i] = Op.In; a[i] = (ins.n | 0) >>> 0; break;
-        case 'JmpF': op[i] = Op.JmpF; a[i] = ins.target | 0; break;
-        case 'JmpB': op[i] = Op.JmpB; a[i] = ins.target | 0; break;
-        case 'Clear': op[i] = Op.Clear; break;
-        case 'Set': op[i] = Op.Set; a[i] = ins.n | 0; break;
-        case 'MulAdd': op[i] = Op.MulAdd; a[i] = ins.offset | 0; b[i] = ins.factor | 0; break;
-        case 'ScanR': op[i] = Op.ScanR; break;
-        case 'ScanL': op[i] = Op.ScanL; break;
+        case 'Move':
+          op[i] = Op.Move;
+          a[i] = ins.n | 0;
+          break;
+        case 'Add':
+          op[i] = Op.Add;
+          a[i] = ins.n | 0;
+          break;
+        case 'Out':
+          op[i] = Op.Out;
+          a[i] = (ins.n | 0) >>> 0;
+          break;
+        case 'In':
+          op[i] = Op.In;
+          a[i] = (ins.n | 0) >>> 0;
+          break;
+        case 'JmpF':
+          op[i] = Op.JmpF;
+          a[i] = ins.target | 0;
+          break;
+        case 'JmpB':
+          op[i] = Op.JmpB;
+          a[i] = ins.target | 0;
+          break;
+        case 'Clear':
+          op[i] = Op.Clear;
+          break;
+        case 'Set':
+          op[i] = Op.Set;
+          a[i] = ins.n | 0;
+          break;
+        case 'MulAdd':
+          op[i] = Op.MulAdd;
+          a[i] = ins.offset | 0;
+          b[i] = ins.factor | 0;
+          break;
+        case 'ScanR':
+          op[i] = Op.ScanR;
+          break;
+        case 'ScanL':
+          op[i] = Op.ScanL;
+          break;
       }
     }
 

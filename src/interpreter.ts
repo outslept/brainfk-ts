@@ -32,7 +32,10 @@ export class Interpreter {
   private readonly onOutputByte: ((byte: number) => void) | undefined;
   private readonly onOutputBurst: ((byte: number, count: number) => void) | undefined;
 
-  constructor(private readonly program: Program, opts: RuntimeOptions = {}) {
+  constructor(
+    private readonly program: Program,
+    opts: RuntimeOptions = {},
+  ) {
     const initial = Math.max(1, opts.tapeSize ?? DEFAULT_TAPE_SIZE);
     this.memory = new Uint8Array(initial);
     this.grow = opts.grow !== undefined ? opts.grow : true;

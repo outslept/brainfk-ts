@@ -10,7 +10,7 @@ export class Lexer {
   private col = 1;
   private peeked: Token | null = null;
 
-  constructor(private readonly src: string) { }
+  constructor(private readonly src: string) {}
 
   peek(): Token | null {
     if (this.peeked === null) this.peeked = this.nextTokenInternal();
