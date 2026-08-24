@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "build": "tsdown --clean",
+    "build": "tsdown",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
