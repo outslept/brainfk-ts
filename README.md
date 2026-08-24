@@ -1,21 +1,76 @@
-# Brainfuck (TypeScript): lexer → parser → interpreter
+# bf-ts
 
-Minimal BF toolchain.
+A minimal Brainfuck toolchain written in TypeScript.
 
-# Semantics
+Includes a lexer, parser, interpreter, and CLI.
 
-- Cells: 8-bit, wrap modulo 256.
-- Input: missing byte = 0.
-- Output: run() returns collected bytes only if no output callbacks handled them.
-- Tape: cannot move left of cell 0; grows by doubling when grow=true.
-- Errors: left-of-tape, tape overflow (with grow=false), step limit exceeded.
+## Features
 
-# TODO
+- Brainfuck lexer and parser
+- Optimized instruction representation
+- Common loop optimizations
+- Dynamically growing tape
+- Execution limits
+- Byte-oriented I/O
+- CLI support for files and stdin
 
-- Clear loop apply only when increment is odd (or strictly ±1).
-- Use TextEncoder when available; Buffer fallback for Node.
-- Detect patterns like [->+>+<<].
-- Detect [-]+++ → set constant.
-- Optimize [>] / [<] into Scan/SeekZero.
-- Small cleanups (e.g., Add; Clear → Clear), better Move coalescing.
-- Hard cap for tape growth and basic test suite (loops, bursts, step limits).
+## Usage
+
+Run a file:
+
+```bash
+bf-ts hello.bf
+```
+
+Read source from stdin:
+
+```bash
+echo '++++++++[>++++++++<-]>+.' | bf-ts -
+```
+
+Show help:
+
+```bash
+bf-ts --help
+```
+
+## API
+
+```ts
+import { Lexer, Parser, Interpreter } from 'bf-ts';
+
+const lexer = new Lexer('++++++++[>++++++++<-]>+.');
+const parser = new Parser();
+const program = parser.parse(lexer);
+
+const interpreter = new Interpreter(program);
+const output = interpreter.run();
+```
+
+Input and runtime limits can be configured:
+
+```ts
+const interpreter = new Interpreter(program, {
+  input: 'hello',
+  tapeSize: 65536,
+  maxTapeSize: 1_000_000,
+  maxSteps: 10_000_000,
+});
+```
+
+## Brainfuck
+
+Supported instructions:
+
+```text
+>  move right
+<  move left
++  increment
+-  decrement
+.  output
+,  input
+[  loop start
+]  loop end
+```
+
+All other characters are ignored.
